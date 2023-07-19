@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Chris L. Barnes <chrislloydbarnes@gmail.com>"]
 description = "Utilities for HTTP Range requests and responses"
 repository = "https://github.com/clbarnes/byteranges-rs"
+documentation = "https://docs.rs/byteranges"
 license = "MIT"
 keywords = ["range", "content-range", "partial-content", "http", "request"]
 categories = ["compression", "web-programming::http-client"]
