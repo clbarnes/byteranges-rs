@@ -98,7 +98,9 @@ pub enum PartialHeaderParseError {
 
 /// Trait for a response which may be a 206 Partial.
 ///
-/// Implemented for [http::Response] and [reqwest::blocking::Response] behind the relevant features.
+/// Implemented for [http::Response](https://docs.rs/http/latest/http/response/struct.Response.html)
+/// and [reqwest::blocking::Response](https://docs.rs/reqwest/latest/reqwest/struct.Response.html)
+/// behind the relevant feature flags.
 pub trait MaybePartialResponse: Sized {
     fn status_code(&self) -> u16;
 
