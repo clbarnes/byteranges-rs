@@ -109,7 +109,7 @@ pub trait MaybePartialResponse: Sized {
     fn content_range_str(&self) -> Option<&str>;
 
     /// The bytes of the response body.
-    // todo: could ths be generic instead?
+    // todo: could this error be generic instead?
     fn body(self) -> Result<Bytes, Box<dyn std::error::Error>>;
 
     /// If the response is a 206 Partial, a description of what type based on the headers.
