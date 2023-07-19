@@ -1,7 +1,7 @@
 use std::{fmt::Display, ops::RangeBounds};
 
-pub const BYTES: &'static str = "bytes";
-pub const RANGE: &'static str = "Range";
+pub const BYTES: &str = "bytes";
+pub const RANGE: &str = "Range";
 
 /// A single range in a `Range` request.
 ///
@@ -38,18 +38,15 @@ impl<T: RangeBounds<u64>> From<T> for HttpRange {
         use std::ops::Bound::*;
         let start = match value.start_bound() {
             Included(i) => *i,
-            Excluded(i) => i + &1,
+            Excluded(i) => i + 1,
             Unbounded => 0,
         };
         let end = match value.end_bound() {
             Included(i) => Some(*i),
-            Excluded(i) => Some(i - &1),
+            Excluded(i) => Some(i - 1),
             Unbounded => None,
         };
-        HttpRange::Range {
-            start: start.into(),
-            end: end.into(),
-        }
+        HttpRange::Range { start, end }
     }
 }
 

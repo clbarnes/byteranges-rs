@@ -12,7 +12,7 @@ use thiserror::Error;
 
 pub use bytes::{Buf, Bytes};
 
-const BYTERANGES: &'static str = "multipart/byteranges";
+const BYTERANGES: &str = "multipart/byteranges";
 
 /// A component part of a 206 response.
 #[derive(Debug, Clone)]
@@ -252,7 +252,7 @@ impl Iterator for Parts {
                 self.is_done = true;
                 return Some(Ok(ResponsePart {
                     content_type: content_type.to_string(),
-                    content_range: content_range.clone(),
+                    content_range: *content_range,
                     data: self.body.clone(),
                 }));
             }
@@ -447,18 +447,18 @@ fn make_sparse_body<T: IntoIterator<Item = ResponsePart>>(parts: T) -> SparseBod
     let mut idx = 0;
     for (offset, len, resp) in map.into_values().map(|(o, l, r)| (o as u64, l as u64, r)) {
         if idx < offset {
-            let needed_len = (offset - idx) as u64;
+            let needed_len = offset - idx;
             start_parts.push((idx, Part::Empty(Spacer::new(needed_len))));
         }
 
         let brs = BytesRS::new(resp.data.clone());
 
-        start_parts.push((offset as u64, Part::Full(brs)));
+        start_parts.push((offset, Part::Full(brs)));
         idx = offset + len;
     }
     let total_len_64 = total_len as u64;
     if idx < total_len_64 {
-        start_parts.push((idx, Part::Empty(Spacer::new(total_len_64 - idx as u64))));
+        start_parts.push((idx, Part::Empty(Spacer::new(total_len_64 - idx))));
     }
     let n = Node::partition_with_starts(start_parts, total_len_64);
     SparseBody(SparseBodyOpt::Partial(n))

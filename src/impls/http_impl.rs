@@ -13,15 +13,13 @@ impl<T: Read> MaybePartialResponse for http::Response<T> {
     fn content_type_str(&self) -> Option<&str> {
         self.headers()
             .get("Content-Type")
-            .map(|v| v.to_str().ok())
-            .flatten()
+            .and_then(|v| v.to_str().ok())
     }
 
     fn content_range_str(&self) -> Option<&str> {
         self.headers()
             .get("Content-Type")
-            .map(|v| v.to_str().ok())
-            .flatten()
+            .and_then(|v| v.to_str().ok())
     }
 
     fn body(self) -> Result<bytes::Bytes, Box<dyn std::error::Error>> {
