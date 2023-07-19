@@ -80,7 +80,7 @@ pub enum PartDesc {
     },
 }
 
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Error)]
 pub enum PartialHeaderParseError {
     #[error("Range response could not be satisfied (status 416)")]
     Unsatisfied,
@@ -92,10 +92,14 @@ pub enum PartialHeaderParseError {
     NoContentRange,
     #[error("Could not parse Content-Range header: {0}")]
     ContentRangeParse(String),
+    #[error(transparent)]
+    BodyRead(#[from] Box<dyn std::error::Error>),
 }
 
 /// Trait for a response which may be a 206 Partial.
-pub trait MaybePartialResponse {
+///
+/// Implemented for [http::Response] and [reqwest::blocking::Response] behind the relevant features.
+pub trait MaybePartialResponse: Sized {
     fn status_code(&self) -> u16;
 
     /// Value of the response's `Content-Type` header if present.
@@ -105,7 +109,8 @@ pub trait MaybePartialResponse {
     fn content_range_str(&self) -> Option<&str>;
 
     /// The bytes of the response body.
-    fn body(&self) -> Bytes;
+    // todo: could ths be generic instead?
+    fn body(self) -> Result<Bytes, Box<dyn std::error::Error>>;
 
     /// If the response is a 206 Partial, a description of what type based on the headers.
     fn part_description(&self) -> Result<PartDesc, PartialHeaderParseError> {
@@ -143,8 +148,8 @@ pub trait MaybePartialResponse {
     }
 
     /// If the response is a 206 Partial, an iterator over its [ResponsePart]s.
-    fn parts(&self) -> Result<Parts, PartialHeaderParseError> {
-        Ok(Parts::new(self.part_description()?, self.body()))
+    fn parts(self) -> Result<Parts, PartialHeaderParseError> {
+        Ok(Parts::new(self.part_description()?, self.body()?))
     }
 
     /// Representation of the whole requested file, with [Read]/[Seek].
@@ -155,21 +160,23 @@ pub trait MaybePartialResponse {
     /// This does not take up the memory that the whole file would, as the [SparseBody] generates the filler material on the fly.
     ///
     /// Responses which contain overlapping ranges will cause unexpected behaviour; blame the server.
-    fn sparse_body(&self) -> Result<SparseBody, SparseBodyError> {
+    fn sparse_body(self) -> Result<SparseBody, SparseBodyError> {
         if self.status_code() == 200 {
-            return Ok(SparseBody::full(self.body()));
+            return Ok(SparseBody::full(self.body()?));
         }
         let pv: Result<Vec<ResponsePart>, PartParseError> = self.parts()?.collect();
         Ok(SparseBody::partial(pv?))
     }
 }
 
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Error)]
 pub enum SparseBodyError {
     #[error(transparent)]
     Header(#[from] PartialHeaderParseError),
     #[error(transparent)]
     Part(#[from] PartParseError),
+    #[error(transparent)]
+    Body(#[from] Box<dyn std::error::Error>),
 }
 
 // Iterator over parts of a 206 Partial response.

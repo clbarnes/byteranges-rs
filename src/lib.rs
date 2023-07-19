@@ -10,6 +10,9 @@ pub mod request;
 
 pub mod response;
 
+mod impls;
+pub use impls::*;
+
 /// variant_from_data!(EnumType, VariantName, DataType)
 ///
 /// adds `From<D>` for an enum with a variant containing D
