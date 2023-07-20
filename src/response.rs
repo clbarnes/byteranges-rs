@@ -469,7 +469,7 @@ fn make_sparse_body<T: IntoIterator<Item = ResponsePart>>(parts: T) -> SparseBod
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_impl::{read_text, test_response, DummyResponse};
+    use crate::test_impl::{read_text, test_response};
 
     #[test]
     fn body_50_100() {
@@ -498,6 +498,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn body__100() {
         let reference = read_text();
         test_response("bytes=-100", |resp| {
