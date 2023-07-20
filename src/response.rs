@@ -425,6 +425,9 @@ fn make_sparse_body<T: IntoIterator<Item = ResponsePart>>(parts: T) -> SparseBod
         let Some((offset, len)) = p.offset_len() else {
             continue
         };
+        // If a content-range header knows the length of the full file, use that.
+        // Otherwise, infer end from the start and end of this byte range:
+        // as we process more ranges, this builds up towards the probable full length
         if let Some(total) = p.total_size() {
             total_len = total_len.max(total)
         } else {
@@ -432,6 +435,7 @@ fn make_sparse_body<T: IntoIterator<Item = ResponsePart>>(parts: T) -> SparseBod
         }
         let tup = (offset, len, p);
 
+        // in case 2 parts start at the same offset, take the longer one
         match map.entry(offset) {
             Entry::Occupied(mut e) => {
                 let val: &mut (usize, usize, ResponsePart) = e.get_mut();
@@ -447,13 +451,26 @@ fn make_sparse_body<T: IntoIterator<Item = ResponsePart>>(parts: T) -> SparseBod
 
     let mut nodes: Vec<Node<Part<BytesRS>>> = Vec::with_capacity(map.len() * 2 + 1);
     let mut idx = 0;
-    for (offset, len, resp) in map.into_values().map(|(o, l, r)| (o as u64, l as u64, r)) {
+    for (offset, mut len, resp) in map.into_values().map(|(o, l, r)| (o as u64, l as u64, r)) {
         if idx < offset {
             let needed_len = offset - idx;
             nodes.push(Node::leaf_with_length(Part::empty(needed_len), needed_len));
+            idx += needed_len;
         }
+        let bytes = if idx > offset {
+            // in case of overlapping byte ranges
+            let remove_front = idx - offset;
+            if remove_front > len {
+                continue;
+            }
+            len -= remove_front;
+            resp.data.slice(remove_front as usize..)
+        } else {
+            resp.data.clone()
+        };
 
-        let brs = BytesRS::new(resp.data.clone());
+        let brs = BytesRS::new(bytes);
+
         nodes.push(Node::leaf_with_length(Part::Full(brs), len));
 
         idx = offset + len;
