@@ -6,4 +6,4 @@ all: $(ranges)
 
 .PHONY: $(ranges)
 $(ranges):
-	curl $(lorem) -i -H "Range: $@" > data/response/$@.http1 2> /dev/null
+	curl $(lorem) -i --http1.1 -H "Range: $@" > data/response/$@.http1 2> /dev/null
