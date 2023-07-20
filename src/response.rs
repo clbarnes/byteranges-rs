@@ -5,7 +5,7 @@ use std::{
 
 use http_content_range::ContentRange;
 use httparse::{parse_headers, EMPTY_HEADER};
-use rope_rd::sparse::{Part, Spacer};
+use rope_rd::sparse::Part;
 use rope_rd::util::abs_position;
 use rope_rd::Node;
 use thiserror::Error;
@@ -445,24 +445,25 @@ fn make_sparse_body<T: IntoIterator<Item = ResponsePart>>(parts: T) -> SparseBod
         }
     }
 
-    let mut start_parts = Vec::with_capacity(map.len() * 2 + 1);
+    let mut nodes: Vec<Node<Part<BytesRS>>> = Vec::with_capacity(map.len() * 2 + 1);
     let mut idx = 0;
     for (offset, len, resp) in map.into_values().map(|(o, l, r)| (o as u64, l as u64, r)) {
         if idx < offset {
             let needed_len = offset - idx;
-            start_parts.push((idx, Part::Empty(Spacer::new(needed_len))));
+            nodes.push(Node::leaf_with_length(Part::empty(needed_len), needed_len));
         }
 
         let brs = BytesRS::new(resp.data.clone());
+        nodes.push(Node::leaf_with_length(Part::Full(brs), len));
 
-        start_parts.push((offset, Part::Full(brs)));
         idx = offset + len;
     }
     let total_len_64 = total_len as u64;
     if idx < total_len_64 {
-        start_parts.push((idx, Part::Empty(Spacer::new(total_len_64 - idx))));
+        let needed_len = total_len_64 - idx;
+        nodes.push(Node::leaf_with_length(Part::empty(needed_len), needed_len));
     }
-    let n = Node::partition_with_starts(start_parts, total_len_64);
+    let n = Node::partition_nodes(nodes);
     SparseBody(SparseBodyOpt::Partial(n))
 }
 
