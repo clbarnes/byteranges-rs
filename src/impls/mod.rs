@@ -7,3 +7,6 @@ pub use reqwest_impl::reqwest;
 mod http_impl;
 #[cfg(feature = "http")]
 pub use http_impl::http;
+
+#[cfg(test)]
+pub(crate) mod test_impl;

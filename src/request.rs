@@ -89,6 +89,16 @@ impl<'a> RangeHeader<'a> {
         }
         self
     }
+
+    pub fn to_header(&self, newline: bool) -> Vec<u8> {
+        let s = self.to_string();
+        let suffix = if newline { "\r\n" } else { "" };
+        format!("{RANGE}: {s}{suffix}").into_bytes()
+    }
+
+    pub fn to_value(&self) -> Vec<u8> {
+        self.to_string().into_bytes()
+    }
 }
 
 impl Default for RangeHeader<'_> {
@@ -102,10 +112,18 @@ impl Default for RangeHeader<'_> {
 
 impl Display for RangeHeader<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Some(range_string) = self.ranges.iter().map(|r| r.to_string()).reduce(|accum, next| accum + ", " + &next) else {
+        let Some(range_string) = self.ranges.iter().map(|r| r.to_string()).reduce(|accum, next| accum + "," + &next) else {
             return Ok(());
         };
         f.write_fmt(format_args!("{0}={range_string}", self.unit))
+    }
+}
+
+impl<R: Into<HttpRange>> From<R> for RangeHeader<'static> {
+    fn from(value: R) -> Self {
+        let mut h = RangeHeader::default();
+        h.push(value.into());
+        h
     }
 }
 
@@ -114,5 +132,120 @@ impl<R: Into<HttpRange>> FromIterator<R> for RangeHeader<'static> {
         let mut h = RangeHeader::default();
         h.extend(iter);
         h
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_canonical(header: &RangeHeader, expected: &str) {
+        assert_eq!(header.to_string(), expected)
+    }
+
+    #[test]
+    fn first_500() {
+        let mut rh = RangeHeader::default();
+        rh.push(HttpRange::Range {
+            start: 0,
+            end: Some(499),
+        });
+        test_canonical(&rh, "bytes=0-499")
+    }
+
+    #[test]
+    fn second_500() {
+        let mut rh = RangeHeader::default();
+        rh.push(HttpRange::Range {
+            start: 500,
+            end: Some(999),
+        });
+        test_canonical(&rh, "bytes=500-999")
+    }
+
+    #[test]
+    fn final_500() {
+        let mut rh = RangeHeader::default();
+        rh.push(HttpRange::Suffix(500));
+        test_canonical(&rh, "bytes=-500")
+    }
+
+    #[test]
+    fn from_9500() {
+        let mut rh = RangeHeader::default();
+        rh.push(HttpRange::Range {
+            start: 9500,
+            end: None,
+        });
+        test_canonical(&rh, "bytes=9500-")
+    }
+
+    #[test]
+    fn first_last() {
+        let mut rh = RangeHeader::default();
+        rh.push(HttpRange::Range {
+            start: 0,
+            end: Some(0),
+        });
+        rh.push(HttpRange::Suffix(1));
+        test_canonical(&rh, "bytes=0-0,-1");
+    }
+
+    #[test]
+    fn multibytes() {
+        let mut rh = RangeHeader::default();
+        rh.push(HttpRange::Range {
+            start: 500,
+            end: Some(600),
+        });
+        rh.push(HttpRange::Range {
+            start: 601,
+            end: Some(999),
+        });
+        test_canonical(&rh, "bytes=500-600,601-999");
+    }
+
+    #[test]
+    fn multibytes_overlap() {
+        let mut rh = RangeHeader::default();
+        rh.push(HttpRange::Range {
+            start: 500,
+            end: Some(700),
+        });
+        rh.push(HttpRange::Range {
+            start: 601,
+            end: Some(999),
+        });
+        test_canonical(&rh, "bytes=500-700,601-999");
+    }
+
+    #[test]
+    fn from_range_exclusive() {
+        let r: HttpRange = (50..100).into();
+        assert_eq!(r.to_string(), "50-99")
+    }
+
+    #[test]
+    fn from_range_inclusive() {
+        let r: HttpRange = (50..=100).into();
+        assert_eq!(r.to_string(), "50-100")
+    }
+
+    #[test]
+    fn from_range_lower_unbounded() {
+        let r: HttpRange = (..50).into();
+        assert_eq!(r.to_string(), "0-49")
+    }
+
+    #[test]
+    fn from_range_upper_unbounded() {
+        let r: HttpRange = (50..).into();
+        assert_eq!(r.to_string(), "50-")
+    }
+
+    #[test]
+    fn from_iter() {
+        let r: RangeHeader = vec![0..50, 40..100, 150..200].into_iter().collect();
+        assert_eq!(r.to_string(), "bytes=0-49,40-99,150-199")
     }
 }

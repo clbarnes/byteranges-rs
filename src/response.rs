@@ -465,3 +465,48 @@ fn make_sparse_body<T: IntoIterator<Item = ResponsePart>>(parts: T) -> SparseBod
     let n = Node::partition_with_starts(start_parts, total_len_64);
     SparseBody(SparseBodyOpt::Partial(n))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_impl::{read_text, test_response, DummyResponse};
+
+    #[test]
+    fn body_50_100() {
+        let reference = read_text();
+        test_response("bytes=50-100", |resp| {
+            let mut bod = resp.sparse_body().unwrap();
+            let mut buf = [255; 150];
+            bod.read(&mut buf).unwrap();
+            assert_eq!(buf[..50], [0; 50]);
+            assert_eq!(buf[50..=100], reference[50..=100]);
+            assert_eq!(buf[101..150], [0; 49]);
+        });
+    }
+
+    #[test]
+    fn body_3000_() {
+        let reference = read_text();
+        test_response("bytes=3000-", |resp| {
+            let mut bod = resp.sparse_body().unwrap();
+            let mut buf = [255; 200];
+            bod.seek(SeekFrom::Start(2900)).unwrap();
+            bod.read(&mut buf).unwrap();
+            assert_eq!(buf[..100], [0; 100]);
+            assert_eq!(buf[100..], reference[3000..3100]);
+        });
+    }
+
+    #[test]
+    fn body__100() {
+        let reference = read_text();
+        test_response("bytes=-100", |resp| {
+            let mut bod = resp.sparse_body().unwrap();
+            let mut buf = Vec::default();
+            bod.seek(SeekFrom::End(-200)).unwrap();
+            bod.read_to_end(&mut buf).unwrap();
+            assert_eq!(buf[..100], [0; 100]);
+            assert_eq!(buf[100..], reference[reference.len() - 100..]);
+        });
+    }
+}
